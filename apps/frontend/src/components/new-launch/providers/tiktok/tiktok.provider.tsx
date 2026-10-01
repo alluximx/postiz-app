@@ -104,7 +104,11 @@ const TikTokSettings: FC<{
 
   const hasMedia = (value?.[0]?.image?.length ?? 0) > 0;
   const isVideo = hasMedia && !isTitle;
-  const mediaWord = isVideo ? t('video', 'video') : t('photo', 'photo');
+  const mediaWord = isVideo
+    ? t('video', 'video')
+    : hasMedia
+    ? t('photo', 'photo')
+    : t('content', 'content');
   const videoDuration = useVideoDuration(
     isVideo ? value?.[0]?.image?.[0]?.path : undefined
   );

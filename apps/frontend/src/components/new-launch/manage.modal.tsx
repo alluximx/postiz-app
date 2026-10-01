@@ -619,10 +619,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </button>
             )}
             {!addEditSets && (
-              <div
-                className="group cursor-pointer relative"
-                title={publishBlockedReason || undefined}
-              >
+              <div className="group cursor-pointer relative">
+                {!!publishBlockedReason && (
+                  <div className="hidden group-hover:block absolute z-[301] bottom-[100%] end-0 mb-[8px] w-[280px] p-[12px] rounded-[8px] bg-newBgColorInner text-[13px] text-balance">
+                    {publishBlockedReason}
+                  </div>
+                )}
                 <button
                   disabled={
                     selectedIntegrations.length === 0 ||
@@ -661,7 +663,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   )}
                 </button>
 
-                {!dummy && (
+                {!dummy && !publishBlockedReason && (
                   <button
                     onClick={schedule('now')}
                     disabled={
