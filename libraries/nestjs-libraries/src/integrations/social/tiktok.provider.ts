@@ -32,13 +32,14 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
   name = 'Tiktok';
   isBetweenSteps = false;
   convertToJPEG = true;
+  // video.list and user.info.stats were dropped from the live app on 2026-09-13
+  // to pass TikTok's review, and authenticate() runs checkScopes strictly, so
+  // asking for them fails every connect with "Missing required permissions".
   scopes = [
-    'video.list',
     'user.info.basic',
     'video.publish',
     'video.upload',
     'user.info.profile',
-    'user.info.stats',
   ];
   override maxConcurrentJob = 10000;
   dto = TikTokDto;
