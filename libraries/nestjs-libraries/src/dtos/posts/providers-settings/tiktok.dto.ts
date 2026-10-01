@@ -1,7 +1,68 @@
 import {
-  IsBoolean, ValidateIf, IsIn, IsString, MaxLength, IsOptional
+  IsBoolean, ValidateIf, IsIn, IsString, MaxLength, IsOptional, IsEmpty,
+  registerDecorator, ValidationArguments, ValidationOptions, ValidatorConstraint, ValidatorConstraintInterface
 } from 'class-validator';
 import { JSONSchema } from 'class-validator-jsonschema';
+
+// TikTok's Content Sharing Guidelines: once commercial content disclosure is on,
+// at least one of "Your brand" / "Branded content" must be picked to publish.
+@ValidatorConstraint({ name: 'IsTikTokDisclosureComplete', async: false })
+export class IsTikTokDisclosureCompleteConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const o = args.object as TikTokDto;
+    if (!o.disclose || o.content_posting_method === 'UPLOAD') {
+      return true;
+    }
+    return !!o.brand_organic_toggle || !!o.brand_content_toggle;
+  }
+
+  defaultMessage(): string {
+    return 'You need to indicate if your content promotes yourself, a third party, or both.';
+  }
+}
+
+export function IsTikTokDisclosureComplete(
+  validationOptions?: ValidationOptions
+) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      validator: IsTikTokDisclosureCompleteConstraint,
+    });
+  };
+}
+
+// Branded content can only be posted with public or friends visibility.
+@ValidatorConstraint({ name: 'IsTikTokBrandedVisibility', async: false })
+export class IsTikTokBrandedVisibilityConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(value: unknown, args: ValidationArguments): boolean {
+    const o = args.object as TikTokDto;
+    return !(o.brand_content_toggle && value === 'SELF_ONLY');
+  }
+
+  defaultMessage(): string {
+    return 'Branded content visibility cannot be set to private.';
+  }
+}
+
+export function IsTikTokBrandedVisibility(
+  validationOptions?: ValidationOptions
+) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      validator: IsTikTokBrandedVisibilityConstraint,
+    });
+  };
+}
 
 // TikTok only honors most of these settings on a DIRECT_POST. With
 // content_posting_method=UPLOAD the media lands in the user's TikTok inbox as a
@@ -20,13 +81,17 @@ export class TikTokDto {
   })
   title: string;
 
-  @IsIn([
-    'PUBLIC_TO_EVERYONE',
-    'MUTUAL_FOLLOW_FRIENDS',
-    'FOLLOWER_OF_CREATOR',
-    'SELF_ONLY',
-  ])
+  @IsIn(
+    [
+      'PUBLIC_TO_EVERYONE',
+      'MUTUAL_FOLLOW_FRIENDS',
+      'FOLLOWER_OF_CREATOR',
+      'SELF_ONLY',
+    ],
+    { message: 'Select who can see this TikTok post' }
+  )
   @IsString()
+  @IsTikTokBrandedVisibility()
   @JSONSchema({
     description:
       'Applied only when content_posting_method=DIRECT_POST. Ignored by TikTok on UPLOAD.',
@@ -66,11 +131,29 @@ export class TikTokDto {
   autoAddMusic: 'yes' | 'no';
 
   @IsBoolean()
+  @IsTikTokDisclosureComplete()
   @JSONSchema({
     description:
       'Applied only when content_posting_method=DIRECT_POST. Ignored by TikTok on UPLOAD.',
   })
   brand_content_toggle: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  @JSONSchema({
+    description:
+      'Commercial content disclosure switch. When true (and content_posting_method=DIRECT_POST), brand_organic_toggle or brand_content_toggle must be true.',
+  })
+  disclose?: boolean;
+
+  // Set by the composer from TikTok's creator_info / the video duration when
+  // the post can't be published right now; any value blocks the post.
+  @IsOptional()
+  @IsEmpty({ message: (args: ValidationArguments) => String(args.value) })
+  @JSONSchema({
+    description: 'Internal, leave empty.',
+  })
+  posting_blocked?: string;
 
   @IsBoolean()
   @IsOptional()

@@ -8,6 +8,7 @@ import {
 import dayjs from 'dayjs';
 import {
   BadBody,
+  RefreshToken,
   SocialAbstract,
   ValidityMedia,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
@@ -409,6 +410,46 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
 
     return {
       maxDurationSeconds: max_video_post_duration_sec,
+    };
+  }
+
+  // Called by the TikTok settings component every time the composer opens, so
+  // the nickname, privacy options and interaction switches always reflect the
+  // creator's current TikTok settings (Content Sharing Guidelines, UX point 1).
+  async creatorInfo(accessToken: string) {
+    const info = await (
+      await fetch(
+        'https://open.tiktokapis.com/v2/post/publish/creator_info/query/',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+    ).json();
+
+    const code = info?.error?.code;
+    if (code === 'access_token_invalid') {
+      throw new RefreshToken('tiktok', JSON.stringify(info), '{}');
+    }
+
+    const canPost = !code || code === 'ok';
+    return {
+      canPost,
+      error: canPost
+        ? ''
+        : this.handleErrors(JSON.stringify(info))?.value ||
+          'This TikTok account cannot make more posts right now, please try again later',
+      nickname: info?.data?.creator_nickname || '',
+      username: info?.data?.creator_username || '',
+      avatar: info?.data?.creator_avatar_url || '',
+      privacyLevelOptions: (info?.data?.privacy_level_options || []) as string[],
+      commentDisabled: !!info?.data?.comment_disabled,
+      duetDisabled: !!info?.data?.duet_disabled,
+      stitchDisabled: !!info?.data?.stitch_disabled,
+      maxVideoPostDurationSec: info?.data?.max_video_post_duration_sec || 0,
     };
   }
 
